@@ -11,7 +11,7 @@ plugins {
 
 //Project declaration
 group 'com.theorangehub'
-version new Version(major: 1, minor: 0, revision: 0)
+version new Version(major: 1, minor: 0, revision: 1)
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -33,12 +33,13 @@ task wrapper(type: Wrapper) {
     gradleVersion = '3.5'
 }
 
-task clearPrepared(type: Delete) {
+task clearSpecific(type: Delete) {
     delete 'build/prepared-src'
+    delete 'build/javadoc'
 }
 
 task sourcesForRelease(type: Copy) {
-    dependsOn clearPrepared
+    dependsOn clearSpecific
 
     from 'src/main/java'
     into 'build/prepared-src'
@@ -76,6 +77,20 @@ jar {
 
 shadowJar {
     classifier = 'withDependencies'
+}
+
+javadoc {
+    dependsOn clearSpecific
+
+    failOnError = false
+    options.memberLevel = JavadocMemberLevel.PUBLIC
+    options.author()
+    options.encoding = 'UTF-8'
+    options.addStringOption('-html5')
+
+    //### excludes ###
+    //jda internals
+    exclude('com/theorangehub/jva/model/impl')
 }
 
 artifacts {
@@ -126,4 +141,8 @@ class Version {
     String toString() {
         "${major}.${minor}.${revision}"
     }
+}
+
+publish {
+    dependsOn bintrayUpload
 }

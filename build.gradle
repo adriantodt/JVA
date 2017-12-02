@@ -1,10 +1,22 @@
-group 'com.theorangehub'
-version '1.0-SNAPSHOT'
+import org.apache.tools.ant.filters.ReplaceTokens
 
-apply plugin: 'java'
+plugins {
+    id 'java'
+    id 'maven'
+    id 'com.jfrog.bintray' version '1.7.2'
+    id 'maven-publish'
+    id 'signing'
+    id 'com.github.johnrengelman.shadow' version '2.0.0'
+}
+
+//Project declaration
+group 'com.theorangehub'
+version new Version(major: 1, minor: 0, revision: 0)
 
 sourceCompatibility = 1.8
+targetCompatibility = 1.8
 
+//Dependencies
 repositories {
     mavenLocal()
     mavenCentral()
@@ -14,4 +26,104 @@ dependencies {
     compile 'com.squareup.okhttp3:okhttp:3.2.0'
     compile 'net.sf.trove4j:trove4j:3.0.3'
     compile 'org.apache.commons:commons-text:1.1'
+}
+
+//Tasks
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.5'
+}
+
+task clearPrepared(type: Delete) {
+    delete 'build/prepared-src'
+}
+
+task sourcesForRelease(type: Copy) {
+    dependsOn clearPrepared
+
+    from 'src/main/java'
+    into 'build/prepared-src'
+
+    filteringCharset = 'UTF-8'
+
+    filter(ReplaceTokens, tokens: [
+        version: project.version
+    ])
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourcesForRelease.destinationDir
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+//Settings
+compileJava {
+    dependsOn sourcesForRelease
+
+    source = sourcesForRelease.destinationDir
+    classpath = sourceSets.main.compileClasspath
+
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    baseName = project.name
+}
+
+shadowJar {
+    classifier = 'withDependencies'
+}
+
+artifacts {
+    archives shadowJar, javadocJar, sourcesJar
+}
+
+publishing {
+    publications {
+        BintrayRelease(MavenPublication) {
+            from components.java
+            groupId group
+            artifactId project.name
+            version project.version
+            artifact javadocJar
+            artifact sourcesJar
+        }
+    }
+}
+
+bintray {
+    user = bintrayUsername
+    key = bintrayApiKey
+    publications = ['BintrayRelease']
+    pkg {
+        repo = 'maven'
+        name = project.name
+        licenses = ['Apache-2.0']
+        vcsUrl = 'https://github.com/adriantodt/JVA.git'
+        publish = true
+        version {
+            name = project.version
+            released = new Date()
+        }
+    }
+}
+
+bintrayUpload {
+    dependsOn build
+
+    onlyIf { !bintrayUsername.empty }
+    onlyIf { !bintrayApiKey.empty }
+}
+
+class Version {
+    String major, minor, revision
+
+
+    String toString() {
+        "${major}.${minor}.${revision}"
+    }
 }
